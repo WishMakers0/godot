@@ -1,3 +1,5 @@
+<b>NOTE: This fork of Godot is meant for use with <a href="https://github.com/WishMakers0/Phantasy">Phantasy</a>, a danmaku framework for Godot.</b>
+
 # Godot Engine
 
 <p align="center">
