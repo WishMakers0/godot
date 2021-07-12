@@ -35,11 +35,9 @@
 #include "core/config/project_settings.h"
 #include "core/debugger/engine_debugger.h"
 #include "core/debugger/script_debugger.h"
-#include "core/os/thread_dummy.h"
 #include "drivers/unix/dir_access_unix.h"
 #include "drivers/unix/file_access_unix.h"
 #include "drivers/unix/net_socket_posix.h"
-#include "drivers/unix/rw_lock_posix.h"
 #include "drivers/unix/thread_posix.h"
 #include "servers/rendering_server.h"
 
@@ -64,6 +62,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 /// Clock Setup function (used by get_ticks_usec)
@@ -117,13 +116,10 @@ int OS_Unix::unix_initialize_audio(int p_audio_driver) {
 }
 
 void OS_Unix::initialize_core() {
-#ifdef NO_THREADS
-	ThreadDummy::make_default();
-	RWLockDummy::make_default();
-#else
-	ThreadPosix::make_default();
-	RWLockPosix::make_default();
+#if !defined(NO_THREADS)
+	init_thread_posix();
 #endif
+
 	FileAccess::make_default<FileAccessUnix>(FileAccess::ACCESS_RESOURCES);
 	FileAccess::make_default<FileAccessUnix>(FileAccess::ACCESS_USERDATA);
 	FileAccess::make_default<FileAccessUnix>(FileAccess::ACCESS_FILESYSTEM);
@@ -133,7 +129,7 @@ void OS_Unix::initialize_core() {
 
 #ifndef NO_NETWORK
 	NetSocketPosix::make_default();
-	IP_Unix::make_default();
+	IPUnix::make_default();
 #endif
 
 	_setup_clock();
@@ -199,8 +195,8 @@ OS::Time OS_Unix::get_time(bool utc) const {
 	}
 	Time ret;
 	ret.hour = lt.tm_hour;
-	ret.min = lt.tm_min;
-	ret.sec = lt.tm_sec;
+	ret.minute = lt.tm_min;
+	ret.second = lt.tm_sec;
 	get_time_zone_info();
 	return ret;
 }
@@ -299,16 +295,22 @@ Error OS_Unix::execute(const String &p_path, const List<String> &p_arguments, St
 
 	if (pid == 0) {
 		// The child process
-		Vector<char *> args;
-		args.push_back((char *)p_path.utf8().get_data());
+		Vector<CharString> cs;
+		cs.push_back(p_path.utf8());
 		for (int i = 0; i < p_arguments.size(); i++) {
-			args.push_back((char *)p_arguments[i].utf8().get_data());
+			cs.push_back(p_arguments[i].utf8());
+		}
+
+		Vector<char *> args;
+		for (int i = 0; i < cs.size(); i++) {
+			args.push_back((char *)cs[i].get_data());
 		}
 		args.push_back(0);
 
 		execvp(p_path.utf8().get_data(), &args[0]);
 		// The execvp() function only returns if an error occurs.
-		CRASH_NOW_MSG("Could not create child process: " + p_path);
+		ERR_PRINT("Could not create child process: " + p_path);
+		raise(SIGKILL);
 	}
 
 	int status;
@@ -335,16 +337,22 @@ Error OS_Unix::create_process(const String &p_path, const List<String> &p_argume
 		// This ensures the process won't go zombie at the end.
 		setsid();
 
-		Vector<char *> args;
-		args.push_back((char *)p_path.utf8().get_data());
+		Vector<CharString> cs;
+		cs.push_back(p_path.utf8());
 		for (int i = 0; i < p_arguments.size(); i++) {
-			args.push_back((char *)p_arguments[i].utf8().get_data());
+			cs.push_back(p_arguments[i].utf8());
+		}
+
+		Vector<char *> args;
+		for (int i = 0; i < cs.size(); i++) {
+			args.push_back((char *)cs[i].get_data());
 		}
 		args.push_back(0);
 
 		execvp(p_path.utf8().get_data(), &args[0]);
 		// The execvp() function only returns if an error occurs.
-		CRASH_NOW_MSG("Could not create child process: " + p_path);
+		ERR_PRINT("Could not create child process: " + p_path);
+		raise(SIGKILL);
 	}
 
 	if (r_child_id) {

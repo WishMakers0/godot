@@ -30,7 +30,7 @@
 
 #include "editor_file_dialog.h"
 
-#include "core/os/file_access.h"
+#include "core/io/file_access.h"
 #include "core/os/keyboard.h"
 #include "core/os/os.h"
 #include "core/string/print_string.h"
@@ -125,6 +125,8 @@ void EditorFileDialog::_notification(int p_what) {
 }
 
 void EditorFileDialog::_unhandled_input(const Ref<InputEvent> &p_event) {
+	ERR_FAIL_COND(p_event.is_null());
+
 	Ref<InputEventKey> k = p_event;
 
 	if (k.is_valid()) {
@@ -228,14 +230,14 @@ void EditorFileDialog::update_dir() {
 	}
 }
 
-void EditorFileDialog::_dir_entered(String p_dir) {
+void EditorFileDialog::_dir_submitted(String p_dir) {
 	dir_access->change_dir(p_dir);
 	invalidate();
 	update_dir();
 	_push_history();
 }
 
-void EditorFileDialog::_file_entered(const String &p_file) {
+void EditorFileDialog::_file_submitted(const String &p_file) {
 	_action_pressed();
 }
 
@@ -292,6 +294,9 @@ void EditorFileDialog::_post_popup() {
 			if (res && name == "res://") {
 				name = "/";
 			} else {
+				if (name.ends_with("/")) {
+					name = name.substr(0, name.length() - 1);
+				}
 				name = name.get_file() + "/";
 			}
 			bool exists = dir_access->dir_exists(recentd[i]);
@@ -1076,9 +1081,9 @@ EditorFileDialog::Access EditorFileDialog::get_access() const {
 }
 
 void EditorFileDialog::_make_dir_confirm() {
-	Error err = dir_access->make_dir(makedirname->get_text());
+	Error err = dir_access->make_dir(makedirname->get_text().strip_edges());
 	if (err == OK) {
-		dir_access->change_dir(makedirname->get_text());
+		dir_access->change_dir(makedirname->get_text().strip_edges());
 		invalidate();
 		update_filters();
 		update_dir();
@@ -1150,7 +1155,6 @@ void EditorFileDialog::_update_drives() {
 
 void EditorFileDialog::_favorite_selected(int p_idx) {
 	dir_access->change_dir(favorites->get_item_metadata(p_idx));
-	file->set_text("");
 	update_dir();
 	invalidate();
 	_push_history();
@@ -1540,7 +1544,7 @@ EditorFileDialog::EditorFileDialog() {
 	pathhb->add_child(memnew(VSeparator));
 
 	Ref<ButtonGroup> view_mode_group;
-	view_mode_group.instance();
+	view_mode_group.instantiate();
 
 	mode_thumbnails = memnew(Button);
 	mode_thumbnails->set_flat(true);
@@ -1672,8 +1676,8 @@ EditorFileDialog::EditorFileDialog() {
 	item_list->connect("multi_selected", callable_mp(this, &EditorFileDialog::_multi_selected), varray(), CONNECT_DEFERRED);
 	item_list->connect("item_activated", callable_mp(this, &EditorFileDialog::_item_dc_selected), varray());
 	item_list->connect("nothing_selected", callable_mp(this, &EditorFileDialog::_items_clear_selection));
-	dir->connect("text_entered", callable_mp(this, &EditorFileDialog::_dir_entered));
-	file->connect("text_entered", callable_mp(this, &EditorFileDialog::_file_entered));
+	dir->connect("text_submitted", callable_mp(this, &EditorFileDialog::_dir_submitted));
+	file->connect("text_submitted", callable_mp(this, &EditorFileDialog::_file_submitted));
 	filter->connect("item_selected", callable_mp(this, &EditorFileDialog::_filter_selected));
 
 	confirm_save = memnew(ConfirmationDialog);

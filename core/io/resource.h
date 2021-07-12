@@ -32,7 +32,7 @@
 #define RESOURCE_H
 
 #include "core/object/class_db.h"
-#include "core/object/reference.h"
+#include "core/object/ref_counted.h"
 #include "core/templates/safe_refcount.h"
 #include "core/templates/self_list.h"
 
@@ -43,8 +43,8 @@ public:                                                                         
                                                                                                                     \
 private:
 
-class Resource : public Reference {
-	GDCLASS(Resource, Reference);
+class Resource : public RefCounted {
+	GDCLASS(Resource, RefCounted);
 	OBJ_CATEGORY("Resources");
 
 public:
@@ -88,8 +88,12 @@ protected:
 
 public:
 	static Node *(*_get_local_scene_func)(); //used by editor
+	static void (*_update_configuration_warning)(); //used by editor
 
+	void update_configuration_warning();
 	virtual bool editor_can_reload_from_file();
+	virtual void reset_state(); //for resources that use variable amount of properties, either via _validate_property or _get_property_list, this function needs to be implemented to correctly clear state
+	virtual Error copy_from(const Ref<Resource> &p_resource);
 	virtual void reload_from_file();
 
 	void register_owner(Object *p_owner);
@@ -149,16 +153,15 @@ typedef Ref<Resource> RES;
 class ResourceCache {
 	friend class Resource;
 	friend class ResourceLoader; //need the lock
-	static RWLock *lock;
+	static RWLock lock;
 	static HashMap<String, Resource *> resources;
 #ifdef TOOLS_ENABLED
 	static HashMap<String, HashMap<String, int>> resource_path_cache; // each tscn has a set of resource paths and IDs
-	static RWLock *path_cache_lock;
+	static RWLock path_cache_lock;
 #endif // TOOLS_ENABLED
 	friend void unregister_core_types();
 	static void clear();
 	friend void register_core_types();
-	static void setup();
 
 public:
 	static void reload_externals();

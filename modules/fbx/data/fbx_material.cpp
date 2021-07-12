@@ -160,7 +160,7 @@ Ref<StandardMaterial3D> FBXMaterial::import_material(ImportState &state) {
 	const String p_fbx_current_directory = state.path;
 
 	Ref<StandardMaterial3D> spatial_material;
-	spatial_material.instance();
+	spatial_material.instantiate();
 
 	// read the material file
 	// is material two sided
@@ -223,7 +223,7 @@ Ref<StandardMaterial3D> FBXMaterial::import_material(ImportState &state) {
 			} else if (fbx_texture_data != nullptr && fbx_texture_data->Media() != nullptr && fbx_texture_data->Media()->IsEmbedded()) {
 				// This is an embedded texture. Extract it.
 				Ref<Image> image;
-				//image.instance(); // oooo double instance bug? why make Image::_png_blah call
+				//image.instantiate(); // oooo double instance bug? why make Image::_png_blah call
 
 				const String extension = texture_name.get_extension().to_upper();
 				if (extension == "PNG") {
@@ -256,7 +256,7 @@ Ref<StandardMaterial3D> FBXMaterial::import_material(ImportState &state) {
 				}
 
 				Ref<ImageTexture> image_texture;
-				image_texture.instance();
+				image_texture.instantiate();
 				image_texture->create_from_image(image);
 
 				texture = image_texture;
@@ -277,7 +277,7 @@ Ref<StandardMaterial3D> FBXMaterial::import_material(ImportState &state) {
 	}
 
 	/// ALL below is related to properties
-	for (FBXDocParser::LazyPropertyMap::value_type iter : material->Props()->GetLazyProperties()) {
+	for (FBXDocParser::LazyPropertyMap::value_type iter : material->GetLazyProperties()) {
 		const std::string name = iter.first;
 
 		if (name.empty()) {
@@ -317,14 +317,14 @@ Ref<StandardMaterial3D> FBXMaterial::import_material(ImportState &state) {
 
 		ERR_CONTINUE_MSG(desc == PROPERTY_DESC_NOT_FOUND, "The FBX material parameter: `" + String(name.c_str()) + "` was not recognized. Please open an issue so we can add the support to it.");
 
-		const FBXDocParser::PropertyTable *tbl = material->Props();
+		const FBXDocParser::PropertyTable *tbl = material;
 		FBXDocParser::PropertyPtr prop = tbl->Get(name);
 
 		ERR_CONTINUE_MSG(prop == nullptr, "This file may be corrupted because is not possible to extract the material parameter: " + String(name.c_str()));
 
 		if (spatial_material.is_null()) {
 			// Done here so if no data no material is created.
-			spatial_material.instance();
+			spatial_material.instantiate();
 		}
 
 		const FBXDocParser::TypedProperty<real_t> *real_value = dynamic_cast<const FBXDocParser::TypedProperty<real_t> *>(prop);
@@ -420,7 +420,7 @@ Ref<StandardMaterial3D> FBXMaterial::import_material(ImportState &state) {
 			} break;
 			case PROPERTY_DESC_COAT_ROUGHNESS: {
 				// meaning is that approx equal to zero is disabled not actually zero. ;)
-				if (real_value && Math::is_equal_approx(real_value->Value(), 0.0f)) {
+				if (real_value && Math::is_zero_approx(real_value->Value())) {
 					print_verbose("clearcoat real value: " + rtos(real_value->Value()));
 					spatial_material->set_clearcoat_gloss(1.0 - real_value->Value());
 				} else {
@@ -428,7 +428,7 @@ Ref<StandardMaterial3D> FBXMaterial::import_material(ImportState &state) {
 				}
 			} break;
 			case PROPERTY_DESC_EMISSIVE: {
-				if (real_value && Math::is_equal_approx(real_value->Value(), 0.0f)) {
+				if (real_value && Math::is_zero_approx(real_value->Value())) {
 					print_verbose("Emissive real value: " + rtos(real_value->Value()));
 					spatial_material->set_emission_energy(real_value->Value());
 				} else if (vector_value && !vector_value->Value().is_equal_approx(Vector3(0, 0, 0))) {

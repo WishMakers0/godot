@@ -36,8 +36,8 @@
 #include "editor/filesystem_dock.h"
 #include "scene/gui/button.h"
 
-class EditorPropertyArrayObject : public Reference {
-	GDCLASS(EditorPropertyArrayObject, Reference);
+class EditorPropertyArrayObject : public RefCounted {
+	GDCLASS(EditorPropertyArrayObject, RefCounted);
 
 	Variant array;
 
@@ -52,8 +52,8 @@ public:
 	EditorPropertyArrayObject();
 };
 
-class EditorPropertyDictionaryObject : public Reference {
-	GDCLASS(EditorPropertyDictionaryObject, Reference);
+class EditorPropertyDictionaryObject : public RefCounted {
+	GDCLASS(EditorPropertyDictionaryObject, RefCounted);
 
 	Variant new_item_key;
 	Variant new_item_value;
@@ -84,8 +84,8 @@ class EditorPropertyArray : public EditorProperty {
 	bool dropping;
 
 	Ref<EditorPropertyArrayObject> object;
-	int page_len;
-	int page_idx;
+	int page_len = 20;
+	int page_idx = 0;
 	int changing_type_idx;
 	Button *edit;
 	VBoxContainer *vbox;
@@ -129,8 +129,8 @@ class EditorPropertyDictionary : public EditorProperty {
 	bool updating;
 
 	Ref<EditorPropertyDictionaryObject> object;
-	int page_len;
-	int page_idx;
+	int page_len = 20;
+	int page_idx = 0;
 	int changing_type_idx;
 	Button *edit;
 	VBoxContainer *vbox;

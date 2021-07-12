@@ -184,17 +184,17 @@ void Label::_notification(int p_what) {
 		Ref<StyleBox> style = get_theme_stylebox("normal");
 		Ref<Font> font = get_theme_font("font");
 		Color font_color = get_theme_color("font_color");
-		Color font_color_shadow = get_theme_color("font_color_shadow");
+		Color font_shadow_color = get_theme_color("font_shadow_color");
 		Point2 shadow_ofs(get_theme_constant("shadow_offset_x"), get_theme_constant("shadow_offset_y"));
 		int line_spacing = get_theme_constant("line_spacing");
-		Color font_outline_modulate = get_theme_color("font_outline_modulate");
+		Color font_outline_color = get_theme_color("font_outline_color");
 		int outline_size = get_theme_constant("outline_size");
 		int shadow_outline_size = get_theme_constant("shadow_outline_size");
 		bool rtl = is_layout_rtl();
 
 		style->draw(ci, Rect2(Point2(0, 0), get_size()));
 
-		float total_h = 0;
+		float total_h = 0.0;
 		int lines_visible = 0;
 
 		// Get number of lines to fit to the height.
@@ -217,6 +217,7 @@ void Label::_notification(int p_what) {
 		for (int64_t i = lines_skipped; i < last_line; i++) {
 			total_h += TS->shaped_text_get_size(lines_rid[i]).y + font->get_spacing(Font::SPACING_TOP) + font->get_spacing(Font::SPACING_BOTTOM) + line_spacing;
 		}
+		total_h += style->get_margin(SIDE_TOP) + style->get_margin(SIDE_BOTTOM);
 
 		int vbegin = 0, vsep = 0;
 		if (lines_visible > 0) {
@@ -260,7 +261,8 @@ void Label::_notification(int p_what) {
 					}
 				}
 			}
-			visible_glyphs = total_glyphs * percent_visible;
+
+			visible_glyphs = MIN(total_glyphs, visible_chars);
 		}
 
 		Vector2 ofs;
@@ -298,17 +300,17 @@ void Label::_notification(int p_what) {
 			for (int j = 0; j < gl_size; j++) {
 				for (int k = 0; k < glyphs[j].repeat; k++) {
 					if (glyphs[j].font_rid != RID()) {
-						if (font_color_shadow.a > 0) {
-							TS->font_draw_glyph(glyphs[j].font_rid, ci, glyphs[j].font_size, ofs + Vector2(glyphs[j].x_off, glyphs[j].y_off) + shadow_ofs, glyphs[j].index, font_color_shadow);
+						if (font_shadow_color.a > 0) {
+							TS->font_draw_glyph(glyphs[j].font_rid, ci, glyphs[j].font_size, ofs + Vector2(glyphs[j].x_off, glyphs[j].y_off) + shadow_ofs, glyphs[j].index, font_shadow_color);
 							if (shadow_outline_size > 0) {
 								//draw shadow
-								TS->font_draw_glyph_outline(glyphs[j].font_rid, ci, glyphs[j].font_size, shadow_outline_size, ofs + Vector2(glyphs[j].x_off, glyphs[j].y_off) + Vector2(-shadow_ofs.x, shadow_ofs.y), glyphs[j].index, font_color_shadow);
-								TS->font_draw_glyph_outline(glyphs[j].font_rid, ci, glyphs[j].font_size, shadow_outline_size, ofs + Vector2(glyphs[j].x_off, glyphs[j].y_off) + Vector2(shadow_ofs.x, -shadow_ofs.y), glyphs[j].index, font_color_shadow);
-								TS->font_draw_glyph_outline(glyphs[j].font_rid, ci, glyphs[j].font_size, shadow_outline_size, ofs + Vector2(glyphs[j].x_off, glyphs[j].y_off) + Vector2(-shadow_ofs.x, -shadow_ofs.y), glyphs[j].index, font_color_shadow);
+								TS->font_draw_glyph_outline(glyphs[j].font_rid, ci, glyphs[j].font_size, shadow_outline_size, ofs + Vector2(glyphs[j].x_off, glyphs[j].y_off) + Vector2(-shadow_ofs.x, shadow_ofs.y), glyphs[j].index, font_shadow_color);
+								TS->font_draw_glyph_outline(glyphs[j].font_rid, ci, glyphs[j].font_size, shadow_outline_size, ofs + Vector2(glyphs[j].x_off, glyphs[j].y_off) + Vector2(shadow_ofs.x, -shadow_ofs.y), glyphs[j].index, font_shadow_color);
+								TS->font_draw_glyph_outline(glyphs[j].font_rid, ci, glyphs[j].font_size, shadow_outline_size, ofs + Vector2(glyphs[j].x_off, glyphs[j].y_off) + Vector2(-shadow_ofs.x, -shadow_ofs.y), glyphs[j].index, font_shadow_color);
 							}
 						}
-						if (font_outline_modulate.a != 0.0 && outline_size > 0) {
-							TS->font_draw_glyph_outline(glyphs[j].font_rid, ci, glyphs[j].font_size, outline_size, ofs + Vector2(glyphs[j].x_off, glyphs[j].y_off), glyphs[j].index, font_outline_modulate);
+						if (font_outline_color.a != 0.0 && outline_size > 0) {
+							TS->font_draw_glyph_outline(glyphs[j].font_rid, ci, glyphs[j].font_size, outline_size, ofs + Vector2(glyphs[j].x_off, glyphs[j].y_off), glyphs[j].index, font_outline_color);
 						}
 					}
 					ofs.x += glyphs[j].advance;
@@ -357,21 +359,25 @@ void Label::_notification(int p_what) {
 }
 
 Size2 Label::get_minimum_size() const {
-	Size2 min_style = get_theme_stylebox("normal")->get_minimum_size();
-
 	// don't want to mutable everything
 	if (dirty || lines_dirty) {
 		const_cast<Label *>(this)->_shape();
 	}
 
+	Size2 min_size = minsize;
+
+	Ref<Font> font = get_theme_font("font");
+	min_size.height = MAX(min_size.height, font->get_height(get_theme_font_size("font_size")) + font->get_spacing(Font::SPACING_TOP) + font->get_spacing(Font::SPACING_BOTTOM));
+
+	Size2 min_style = get_theme_stylebox("normal")->get_minimum_size();
 	if (autowrap) {
-		return Size2(1, clip ? 1 : minsize.height) + min_style;
+		return Size2(1, clip ? 1 : min_size.height) + min_style;
 	} else {
-		Size2 ms = minsize;
 		if (clip) {
-			ms.width = 1;
+			min_size.width = 1;
 		}
-		return ms + min_style;
+
+		return min_size + min_style;
 	}
 }
 
@@ -391,7 +397,7 @@ int Label::get_visible_line_count() const {
 	Ref<StyleBox> style = get_theme_stylebox("normal");
 	int line_spacing = get_theme_constant("line_spacing");
 	int lines_visible = 0;
-	float total_h = 0;
+	float total_h = 0.0;
 	for (int64_t i = lines_skipped; i < lines_rid.size(); i++) {
 		total_h += TS->shaped_text_get_size(lines_rid[i]).y + font->get_spacing(Font::SPACING_TOP) + font->get_spacing(Font::SPACING_BOTTOM) + line_spacing;
 		if (total_h > (get_size().height - style->get_minimum_size().height + line_spacing)) {
@@ -447,6 +453,7 @@ void Label::set_text(const String &p_string) {
 		visible_chars = get_total_character_count() * percent_visible;
 	}
 	update();
+	minimum_size_changed();
 }
 
 void Label::set_text_direction(Control::TextDirection p_text_direction) {
@@ -537,8 +544,9 @@ void Label::set_visible_characters(int p_amount) {
 	visible_chars = p_amount;
 	if (get_total_character_count() > 0) {
 		percent_visible = (float)p_amount / (float)get_total_character_count();
+	} else {
+		percent_visible = 1.0;
 	}
-	_change_notify("percent_visible");
 	update();
 }
 
@@ -555,7 +563,6 @@ void Label::set_percent_visible(float p_percent) {
 		visible_chars = get_total_character_count() * p_percent;
 		percent_visible = p_percent;
 	}
-	_change_notify("visible_chars");
 	update();
 }
 
@@ -564,6 +571,7 @@ float Label::get_percent_visible() const {
 }
 
 void Label::set_lines_skipped(int p_lines) {
+	ERR_FAIL_COND(p_lines < 0);
 	lines_skipped = p_lines;
 	_update_visible();
 	update();
@@ -610,7 +618,7 @@ bool Label::_set(const StringName &p_name, const Variant &p_value) {
 				update();
 			}
 		}
-		_change_notify();
+		notify_property_list_changed();
 		return true;
 	}
 
@@ -689,7 +697,7 @@ void Label::_bind_methods() {
 	BIND_ENUM_CONSTANT(VALIGN_FILL);
 
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "text", PROPERTY_HINT_MULTILINE_TEXT, "", PROPERTY_USAGE_DEFAULT_INTL), "set_text", "get_text");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "text_direction", PROPERTY_HINT_ENUM, "Auto,LTR,RTL,Inherited"), "set_text_direction", "get_text_direction");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "text_direction", PROPERTY_HINT_ENUM, "Auto,Left-to-Right,Right-to-Left,Inherited"), "set_text_direction", "get_text_direction");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "language"), "set_language", "get_language");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "align", PROPERTY_HINT_ENUM, "Left,Center,Right,Fill"), "set_align", "get_align");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "valign", PROPERTY_HINT_ENUM, "Top,Center,Bottom,Fill"), "set_valign", "get_valign");

@@ -93,8 +93,8 @@ void EMWSPeer::close(int p_code, String p_reason) {
 	peer_sock = -1;
 };
 
-IP_Address EMWSPeer::get_connected_host() const {
-	ERR_FAIL_V_MSG(IP_Address(), "Not supported in HTML5 export.");
+IPAddress EMWSPeer::get_connected_host() const {
+	ERR_FAIL_V_MSG(IPAddress(), "Not supported in HTML5 export.");
 };
 
 uint16_t EMWSPeer::get_connected_port() const {
@@ -106,8 +106,6 @@ void EMWSPeer::set_no_delay(bool p_enabled) {
 }
 
 EMWSPeer::EMWSPeer() {
-	peer_sock = -1;
-	write_mode = WRITE_MODE_BINARY;
 	close();
 };
 

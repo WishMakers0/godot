@@ -36,6 +36,7 @@
 #include "audio/audio_effect.h"
 #include "audio/audio_stream.h"
 #include "audio/effects/audio_effect_amplify.h"
+#include "audio/effects/audio_effect_capture.h"
 #include "audio/effects/audio_effect_chorus.h"
 #include "audio/effects/audio_effect_compressor.h"
 #include "audio/effects/audio_effect_delay.h"
@@ -54,12 +55,14 @@
 #include "audio_server.h"
 #include "camera/camera_feed.h"
 #include "camera_server.h"
+#include "core/extension/native_extension_manager.h"
 #include "display_server.h"
 #include "navigation_server_2d.h"
 #include "navigation_server_3d.h"
 #include "physics_2d/physics_server_2d_sw.h"
 #include "physics_2d/physics_server_2d_wrap_mt.h"
 #include "physics_3d/physics_server_3d_sw.h"
+#include "physics_3d/physics_server_3d_wrap_mt.h"
 #include "physics_server_2d.h"
 #include "physics_server_3d.h"
 #include "rendering/renderer_compositor.h"
@@ -75,11 +78,19 @@
 ShaderTypes *shader_types = nullptr;
 
 PhysicsServer3D *_createGodotPhysics3DCallback() {
-	return memnew(PhysicsServer3DSW);
+	bool using_threads = GLOBAL_GET("physics/3d/run_on_thread");
+
+	PhysicsServer3D *physics_server = memnew(PhysicsServer3DSW(using_threads));
+
+	return memnew(PhysicsServer3DWrapMT(physics_server, using_threads));
 }
 
 PhysicsServer2D *_createGodotPhysics2DCallback() {
-	return PhysicsServer2DWrapMT::init_server<PhysicsServer2DSW>();
+	bool using_threads = GLOBAL_GET("physics/2d/run_on_thread");
+
+	PhysicsServer2D *physics_server = memnew(PhysicsServer2DSW(using_threads));
+
+	return memnew(PhysicsServer2DWrapMT(physics_server, using_threads));
 }
 
 static bool has_server_feature_callback(const String &p_feature) {
@@ -94,6 +105,16 @@ static bool has_server_feature_callback(const String &p_feature) {
 
 void preregister_server_types() {
 	shader_types = memnew(ShaderTypes);
+
+	GLOBAL_DEF("internationalization/rendering/text_driver", "");
+	String text_driver_options;
+	for (int i = 0; i < TextServerManager::get_interface_count(); i++) {
+		if (i > 0) {
+			text_driver_options += ",";
+		}
+		text_driver_options += TextServerManager::get_interface_name(i);
+	}
+	ProjectSettings::get_singleton()->set_custom_property_info("internationalization/rendering/text_driver", PropertyInfo(Variant::STRING, "internationalization/rendering/text_driver", PROPERTY_HINT_ENUM, text_driver_options));
 }
 
 void register_server_types() {
@@ -166,12 +187,15 @@ void register_server_types() {
 		ClassDB::register_class<AudioEffectRecord>();
 		ClassDB::register_class<AudioEffectSpectrumAnalyzer>();
 		ClassDB::register_virtual_class<AudioEffectSpectrumAnalyzerInstance>();
+
+		ClassDB::register_class<AudioEffectCapture>();
 	}
 
 	ClassDB::register_virtual_class<RenderingDevice>();
 	ClassDB::register_class<RDTextureFormat>();
 	ClassDB::register_class<RDTextureView>();
 	ClassDB::register_class<RDAttachmentFormat>();
+	ClassDB::register_class<RDFramebufferPass>();
 	ClassDB::register_class<RDSamplerState>();
 	ClassDB::register_class<RDVertexAttribute>();
 	ClassDB::register_class<RDUniform>();
@@ -183,19 +207,19 @@ void register_server_types() {
 	ClassDB::register_class<RDShaderSource>();
 	ClassDB::register_class<RDShaderBytecode>();
 	ClassDB::register_class<RDShaderFile>();
+	ClassDB::register_class<RDPipelineSpecializationConstant>();
 
 	ClassDB::register_class<CameraFeed>();
 
 	ClassDB::register_virtual_class<PhysicsDirectBodyState2D>();
 	ClassDB::register_virtual_class<PhysicsDirectSpaceState2D>();
-	ClassDB::register_virtual_class<PhysicsShapeQueryResult2D>();
 	ClassDB::register_class<PhysicsTestMotionResult2D>();
 	ClassDB::register_class<PhysicsShapeQueryParameters2D>();
 
 	ClassDB::register_class<PhysicsShapeQueryParameters3D>();
 	ClassDB::register_virtual_class<PhysicsDirectBodyState3D>();
 	ClassDB::register_virtual_class<PhysicsDirectSpaceState3D>();
-	ClassDB::register_virtual_class<PhysicsShapeQueryResult3D>();
+	ClassDB::register_class<PhysicsTestMotionResult3D>();
 
 	// Physics 2D
 	GLOBAL_DEF(PhysicsServer2DManager::setting_property_name, "DEFAULT");
@@ -210,22 +234,26 @@ void register_server_types() {
 
 	PhysicsServer3DManager::register_server("GodotPhysics3D", &_createGodotPhysics3DCallback);
 	PhysicsServer3DManager::set_default_server("GodotPhysics3D");
+
+	NativeExtensionManager::get_singleton()->initialize_extensions(NativeExtension::INITIALIZATION_LEVEL_SERVERS);
 }
 
 void unregister_server_types() {
+	NativeExtensionManager::get_singleton()->deinitialize_extensions(NativeExtension::INITIALIZATION_LEVEL_SERVERS);
+
 	memdelete(shader_types);
 	TextServer::finish_hex_code_box_fonts();
 }
 
 void register_server_singletons() {
-	Engine::get_singleton()->add_singleton(Engine::Singleton("DisplayServer", DisplayServer::get_singleton()));
-	Engine::get_singleton()->add_singleton(Engine::Singleton("RenderingServer", RenderingServer::get_singleton()));
-	Engine::get_singleton()->add_singleton(Engine::Singleton("AudioServer", AudioServer::get_singleton()));
-	Engine::get_singleton()->add_singleton(Engine::Singleton("PhysicsServer2D", PhysicsServer2D::get_singleton()));
-	Engine::get_singleton()->add_singleton(Engine::Singleton("PhysicsServer3D", PhysicsServer3D::get_singleton()));
-	Engine::get_singleton()->add_singleton(Engine::Singleton("NavigationServer2D", NavigationServer2D::get_singleton_mut()));
-	Engine::get_singleton()->add_singleton(Engine::Singleton("NavigationServer3D", NavigationServer3D::get_singleton_mut()));
-	Engine::get_singleton()->add_singleton(Engine::Singleton("TextServerManager", TextServerManager::get_singleton()));
-	Engine::get_singleton()->add_singleton(Engine::Singleton("XRServer", XRServer::get_singleton()));
-	Engine::get_singleton()->add_singleton(Engine::Singleton("CameraServer", CameraServer::get_singleton()));
+	Engine::get_singleton()->add_singleton(Engine::Singleton("DisplayServer", DisplayServer::get_singleton(), "DisplayServer"));
+	Engine::get_singleton()->add_singleton(Engine::Singleton("RenderingServer", RenderingServer::get_singleton(), "RenderingServer"));
+	Engine::get_singleton()->add_singleton(Engine::Singleton("AudioServer", AudioServer::get_singleton(), "AudioServer"));
+	Engine::get_singleton()->add_singleton(Engine::Singleton("PhysicsServer2D", PhysicsServer2D::get_singleton(), "PhysicsServer2D"));
+	Engine::get_singleton()->add_singleton(Engine::Singleton("PhysicsServer3D", PhysicsServer3D::get_singleton(), "PhysicsServer3D"));
+	Engine::get_singleton()->add_singleton(Engine::Singleton("NavigationServer2D", NavigationServer2D::get_singleton_mut(), "NavigationServer2D"));
+	Engine::get_singleton()->add_singleton(Engine::Singleton("NavigationServer3D", NavigationServer3D::get_singleton_mut(), "NavigationServer3D"));
+	Engine::get_singleton()->add_singleton(Engine::Singleton("TextServerManager", TextServerManager::get_singleton(), "TextServerManager"));
+	Engine::get_singleton()->add_singleton(Engine::Singleton("XRServer", XRServer::get_singleton(), "XRServer"));
+	Engine::get_singleton()->add_singleton(Engine::Singleton("CameraServer", CameraServer::get_singleton(), "CameraServer"));
 }

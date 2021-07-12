@@ -39,8 +39,8 @@
 
 #include "core/config/project_settings.h"
 #include "core/debugger/engine_debugger.h"
-#include "core/os/dir_access.h"
-#include "core/os/file_access.h"
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/os/os.h"
 #include "core/os/thread.h"
 
@@ -119,11 +119,11 @@ void gd_mono_profiler_init() {
 
 	const String env_var_name = "MONO_ENV_OPTIONS";
 	if (OS::get_singleton()->has_environment(env_var_name)) {
-		const auto mono_env_ops = OS::get_singleton()->get_environment(env_var_name);
+		const String mono_env_ops = OS::get_singleton()->get_environment(env_var_name);
 		// Usually MONO_ENV_OPTIONS looks like:   --profile=jb:prof=timeline,ctl=remote,host=127.0.0.1:55467
 		const String prefix = "--profile=";
 		if (mono_env_ops.begins_with(prefix)) {
-			const auto ops = mono_env_ops.substr(prefix.length(), mono_env_ops.length());
+			const String ops = mono_env_ops.substr(prefix.length(), mono_env_ops.length());
 			mono_profiler_load(ops.utf8());
 		}
 	}
@@ -593,8 +593,8 @@ ApiAssemblyInfo::Version ApiAssemblyInfo::Version::get_from_loaded_assembly(GDMo
 	ApiAssemblyInfo::Version api_assembly_version;
 
 	const char *nativecalls_name = p_api_type == ApiAssemblyInfo::API_CORE ?
-										   BINDINGS_CLASS_NATIVECALLS :
-										   BINDINGS_CLASS_NATIVECALLS_EDITOR;
+											 BINDINGS_CLASS_NATIVECALLS :
+											 BINDINGS_CLASS_NATIVECALLS_EDITOR;
 
 	GDMonoClass *nativecalls_klass = p_api_assembly->get_class(BINDINGS_NAMESPACE, nativecalls_name);
 
@@ -691,7 +691,7 @@ static bool try_get_cached_api_hash_for(const String &p_api_assemblies_dir, bool
 	}
 
 	Ref<ConfigFile> cfg;
-	cfg.instance();
+	cfg.instantiate();
 	Error cfg_err = cfg->load(cached_api_hash_path);
 	ERR_FAIL_COND_V(cfg_err != OK, false);
 
@@ -717,7 +717,7 @@ static void create_cached_api_hash_for(const String &p_api_assemblies_dir) {
 	String cached_api_hash_path = p_api_assemblies_dir.plus_file("api_hash_cache.cfg");
 
 	Ref<ConfigFile> cfg;
-	cfg.instance();
+	cfg.instantiate();
 
 	cfg->set_value("core", "modified_time", FileAccess::get_modified_time(core_api_assembly_path));
 	cfg->set_value("editor", "modified_time", FileAccess::get_modified_time(editor_api_assembly_path));
@@ -757,11 +757,11 @@ String GDMono::update_api_assemblies_from_prebuilt(const String &p_config, const
 #define FAIL_REASON(m_out_of_sync, m_prebuilt_exists)                            \
 	(                                                                            \
 			(m_out_of_sync ?                                                     \
-							String("The assembly is invalidated ") :             \
-							String("The assembly was not found ")) +             \
+							  String("The assembly is invalidated ") :             \
+							  String("The assembly was not found ")) +             \
 			(m_prebuilt_exists ?                                                 \
-							String("and the prebuilt assemblies are missing.") : \
-							String("and we failed to copy the prebuilt assemblies.")))
+							  String("and the prebuilt assemblies are missing.") : \
+							  String("and we failed to copy the prebuilt assemblies.")))
 
 	String dst_assemblies_dir = GodotSharpDirs::get_res_assemblies_base_dir().plus_file(p_config);
 
@@ -820,8 +820,8 @@ bool GDMono::_load_core_api_assembly(LoadedApiAssembly &r_loaded_api_assembly, c
 
 	// If running the project manager, load it from the prebuilt API directory
 	String assembly_dir = !Main::is_project_manager() ?
-								  GodotSharpDirs::get_res_assemblies_base_dir().plus_file(p_config) :
-								  GodotSharpDirs::get_data_editor_prebuilt_api_dir().plus_file(p_config);
+									GodotSharpDirs::get_res_assemblies_base_dir().plus_file(p_config) :
+									GodotSharpDirs::get_data_editor_prebuilt_api_dir().plus_file(p_config);
 
 	String assembly_path = assembly_dir.plus_file(CORE_API_ASSEMBLY_NAME ".dll");
 
@@ -853,8 +853,8 @@ bool GDMono::_load_editor_api_assembly(LoadedApiAssembly &r_loaded_api_assembly,
 
 	// If running the project manager, load it from the prebuilt API directory
 	String assembly_dir = !Main::is_project_manager() ?
-								  GodotSharpDirs::get_res_assemblies_base_dir().plus_file(p_config) :
-								  GodotSharpDirs::get_data_editor_prebuilt_api_dir().plus_file(p_config);
+									GodotSharpDirs::get_res_assemblies_base_dir().plus_file(p_config) :
+									GodotSharpDirs::get_data_editor_prebuilt_api_dir().plus_file(p_config);
 
 	String assembly_path = assembly_dir.plus_file(EDITOR_API_ASSEMBLY_NAME ".dll");
 
@@ -1006,6 +1006,7 @@ bool GDMono::_load_project_assembly() {
 
 	if (success) {
 		mono_assembly_set_main(project_assembly->get_assembly());
+		CSharpLanguage::get_singleton()->lookup_scripts_in_assembly(project_assembly);
 	}
 
 	return success;
